@@ -1,0 +1,1020 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>3D Pumpkin Carving App (UMD)</title>
+  <!-- Import Material Icons for modern control icons -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Icons+Outlined" />
+  <style>
+    /*
+       * Global and themable styles for the pumpkin app.  A set of CSS
+       * custom properties define colours for light and dark themes.  The
+       * body element toggles a `dark` class to switch between modes.
+       * Modern UI controls are styled with rounded edges, subtle
+       * shadows and icons from Material Icons.  Flexbox layout is used
+       * to space controls evenly.
+       */
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      font-family: sans-serif;
+      background: var(--bg-color);
+      color: var(--text-color);
+    }
+
+    /* Light theme variables */
+    :root {
+      --bg-color: #ffffff;
+      --panel-bg: rgba(0, 0, 0, 0.6);
+      --panel-border: transparent;
+      --text-color: #ffffff;
+      --select-bg: #222222;
+      --select-border: #444444;
+      --select-color: #ffffff;
+      --range-track: #444444;
+      --range-thumb: #803300;
+      --button-bg: #803300;
+      --button-hover: #a65300;
+      --button-color: #ffffff;
+      --icon-size: 20px;
+    }
+
+    /* Dark theme overrides */
+    body.dark {
+      --bg-color: #000000;
+      --panel-bg: rgba(255, 255, 255, 0.15);
+      --panel-border: transparent;
+      --text-color: #ffffff;
+      --select-bg: #444444;
+      --select-border: #666666;
+      --select-color: #ffffff;
+      --range-track: #666666;
+      --range-thumb: #a65300;
+      --button-bg: #a65300;
+      --button-hover: #b86412;
+      --button-color: #ffffff;
+    }
+
+    #container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    /* Control panel styling */
+    #ui {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 8px 10px;
+      background: var(--panel-bg);
+      color: var(--text-color);
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+      backdrop-filter: blur(6px);
+    }
+
+    /* Group container for selects and range */
+    .control-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+
+    /* Styling for selects */
+    .control-group select {
+      appearance: none;
+      padding: 4px 24px 4px 8px;
+      font-size: 13px;
+      background: var(--select-bg);
+      border: 1px solid var(--select-border);
+      border-radius: 4px;
+      color: var(--select-color);
+      position: relative;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ffffff'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 6px center;
+      background-size: 16px 16px;
+      cursor: pointer;
+    }
+
+    /* Styling for range slider */
+    .control-group input[type="range"] {
+      -webkit-appearance: none;
+      width: 100px;
+      height: 4px;
+      border-radius: 2px;
+      background: var(--range-track);
+      outline: none;
+      cursor: pointer;
+    }
+
+    .control-group input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--range-thumb);
+      cursor: pointer;
+    }
+
+    .control-group input[type="range"]::-moz-range-thumb {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--range-thumb);
+      border: none;
+      cursor: pointer;
+    }
+
+    /* Buttons container */
+    .buttons {
+      display: flex;
+      gap: 6px;
+    }
+
+    /* Icon buttons */
+    .icon-button {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      border: none;
+      border-radius: 50%;
+      background: var(--button-bg);
+      color: var(--button-color);
+      cursor: pointer;
+      transition: background 0.2s ease;
+      position: relative;
+    }
+
+    .icon-button:hover {
+      background: var(--button-hover);
+    }
+
+    .icon-button .material-icons-outlined {
+      font-size: var(--icon-size);
+      line-height: 1;
+    }
+
+    /* Tooltip styling */
+    .icon-button:hover::after {
+      content: attr(data-tooltip);
+      position: absolute;
+      bottom: calc(100% + 6px);
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 4px 8px;
+      font-size: 11px;
+      color: #fff;
+      background: rgba(0, 0, 0, 0.7);
+      border-radius: 4px;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+  </style>
+  <!--
+      Load Three.js and OrbitControls from a CDN.  These scripts expose
+      THREE as a global variable and attach OrbitControls to it.  Using
+      UMD builds avoids the need for ES module imports, which can be
+      blocked when running an HTML file directly from the filesystem.
+    -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+  <!--
+      Load gif.js from CDN.  The gif.js library encodes GIF files directly
+      in the browser.  According to the documentation, you create a new
+      `GIF` instance, add frames from a canvas element using `gif.addFrame`,
+      and then call `gif.render()` to generate the GIF【815160176633422†L10-L24】.
+      The library uses web workers to encode the frames and provides a
+      callback on the `finished` event with a Blob containing the GIF data.
+    -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.min.js"></script>
+  <!--
+      OrbitControls.js was originally loaded from the Three.js examples directory.  However,
+      the UMD build for OrbitControls has been removed from recent releases of the
+      library and is no longer accessible via CDN.  Attempting to load the module via
+      a missing URL results in `THREE.OrbitControls is not a constructor` and the
+      application fails to initialize.  To avoid the dependency on a separate script
+      altogether, this UMD version implements its own minimal orbit control logic
+      using plain pointer events.  The custom control supports camera rotation
+      around the pumpkin with the right mouse button and zooming with the mouse
+      wheel.  Left–button interactions are reserved for carving the pumpkin.  If
+      you wish to use the official OrbitControls implementation instead, you can
+      replace the custom control code with a downloaded copy of OrbitControls.js
+      that matches your Three.js version and include it here.
+    -->
+</head>
+
+<body>
+  <div id="container"></div>
+  <div id="ui">
+    <div class="control-group">
+      <select id="shapeSelect" class="select" title="Select pumpkin shape">
+        <option value="classic">Classic</option>
+        <option value="tall">Tall</option>
+        <option value="squat">Squat</option>
+        <option value="warty">Warty</option>
+        <option value="smooth">Smooth</option>
+      </select>
+      <select id="toolSelect" class="select" title="Select carving tool">
+        <option value="circle">Circle</option>
+        <option value="square">Square</option>
+        <option value="star">Star</option>
+        <option value="triangle">Triangle</option>
+        <option value="heart">Heart</option>
+        <option value="ellipse">Ellipse</option>
+      </select>
+      <input id="sizeRange" type="range" min="5" max="50" value="15" title="Brush size" />
+    </div>
+    <div class="buttons">
+      <button id="clearBtn" class="icon-button" data-tooltip="Reset">
+        <span class="material-icons-outlined">refresh</span>
+      </button>
+      <button id="downloadBtn" class="icon-button" data-tooltip="Download PNG">
+        <span class="material-icons-outlined">download</span>
+      </button>
+      <button id="darkModeToggleBtn" class="icon-button" data-tooltip="Toggle dark mode">
+        <span class="material-icons-outlined">dark_mode</span>
+      </button>
+    </div>
+  </div>
+  <script>
+    // Ensure Three.js has loaded
+    if (!window.THREE) {
+      console.error('Three.js failed to load. Make sure you have a network connection or adjust the script URL.');
+    }
+
+    // DOM references
+    const container = document.getElementById('container');
+    const shapeSelect = document.getElementById('shapeSelect');
+    const toolSelect = document.getElementById('toolSelect');
+    const sizeRange = document.getElementById('sizeRange');
+    const clearBtn = document.getElementById('clearBtn');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const gifBtn = document.getElementById('gifBtn');
+    const darkModeToggleBtn = document.getElementById('darkModeToggleBtn');
+
+    // Rotation is no longer controlled by a checkbox.  Instead, the
+    // mouse wheel updates the camera angles directly, so rotateMode is
+    // always false.  This ensures that pointer interactions always
+    // perform carving and never trigger rotation.
+    const rotateMode = false;
+
+    // Shape configurations for different pumpkin styles.  Each shape
+    // defines how tall or squat the pumpkin is (yScale), the amplitude
+    // of its ridges (ridgeAmplitude) and how many ridges around its
+    // circumference (ridgeCount).  The "classic" shape matches the
+    // previous default, while others provide variety.  The user can
+    // select a shape before carving via the Shape dropdown in the UI.
+    const shapeConfigs = {
+      classic: { yScale: 0.8, ridgeAmplitude: 0.1, ridgeCount: 6 },
+      tall: { yScale: 1.2, ridgeAmplitude: 0.1, ridgeCount: 6 },
+      squat: { yScale: 0.6, ridgeAmplitude: 0.12, ridgeCount: 6 },
+      warty: { yScale: 0.8, ridgeAmplitude: 0.2, ridgeCount: 12 },
+      smooth: { yScale: 0.8, ridgeAmplitude: 0.0, ridgeCount: 0 },
+    };
+    // Current shape selection.  Defaults to "classic".  When the user
+    // changes the selection this variable will be updated and the
+    // geometry will be regenerated.
+    let currentShape = 'classic';
+
+    // Renderer
+    // When preserving the drawing buffer, we can export the current frame
+    // as an image via toDataURL().  Without preserveDrawingBuffer set to
+    // true the canvas contents may be cleared after each render and the
+    // downloaded image would be blank.  Antialiasing smooths edges and
+    // alpha allows the pumpkin to be rendered over a transparent
+    // background if desired.
+    const renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      alpha: true,
+      preserveDrawingBuffer: true,
+    });
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    // Render colours in the sRGB colour space so that the pumpkin's
+    // gradient appears bright and saturated.  Without this, colours
+    // remain in linear space and look too dark.
+    if (renderer.outputColorSpace !== undefined) {
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+    } else if (renderer.outputEncoding !== undefined) {
+      renderer.outputEncoding = THREE.sRGBEncoding;
+    }
+    container.appendChild(renderer.domElement);
+
+    // Scene and camera
+    const scene = new THREE.Scene();
+    // Use a white background instead of dark grey.  This matches the page
+    // background and meets the requirement to change the background colour
+    // from black to white.
+    scene.background = new THREE.Color(0xffffff);
+    const camera = new THREE.PerspectiveCamera(
+      45,
+      window.innerWidth / window.innerHeight,
+      0.1,
+      100
+    );
+    camera.position.set(0, 1.5, 3);
+
+    // ----------------------------------------------------------------------
+    // Custom orbit controls
+    //
+    // Three.js used to expose OrbitControls as a UMD script, but recent
+    // releases removed the non‑module build.  Loading the missing file
+    // results in `THREE.OrbitControls` being undefined and errors like
+    // “THREE.OrbitControls is not a constructor”.  To keep this demo
+    // self‑contained, we implement a lightweight version of orbit
+    // controls directly in JavaScript.  The camera orbits around the
+    // origin at a fixed distance.  View control is initiated either by
+    // right‑click/Shift‑drag or by left‑dragging on the empty background.  In
+    // view‑control mode, horizontal motion rotates the pumpkin (adjusting
+    // longitude) and vertical motion zooms the camera (adjusting
+    // distance).  Left‑dragging on the pumpkin carves holes instead of
+    // moving the camera.  The mouse wheel still zooms for convenience.
+
+    // Spherical coordinates for the camera (degrees for convenience)
+    let lon = 0;
+    let lat = 30;
+    let distance = 3;
+    // Interaction state for camera control and carving
+    // `startX`/`startY` record the initial pointer position when a
+    // view‑control drag begins.  `controlStartLon` and
+    // `controlStartDistance` capture the camera’s longitude and
+    // distance at the start of a drag so incremental deltas can be
+    // applied.  Unused variables startLon/startLat from earlier
+    // iterations have been removed for clarity.
+    let startX = 0;
+    let startY = 0;
+
+    // Clamp function to restrict latitude
+    function clamp(val, min, max) {
+      return Math.min(Math.max(val, min), max);
+    }
+
+    function updateCamera() {
+      // Constrain latitude to avoid flipping the camera over the poles
+      lat = clamp(lat, -85, 85);
+      const phi = THREE.MathUtils.degToRad(90 - lat);
+      const theta = THREE.MathUtils.degToRad(lon);
+      const x = distance * Math.sin(phi) * Math.cos(theta);
+      const y = distance * Math.cos(phi);
+      const z = distance * Math.sin(phi) * Math.sin(theta);
+      camera.position.set(x, y, z);
+      camera.lookAt(0, 0, 0);
+    }
+
+    // Lighting
+    // Increase the ambient light to make the pumpkin surface brighter.
+    const ambient = new THREE.AmbientLight(0x555555);
+    scene.add(ambient);
+    // A candle‑like point light from inside the pumpkin gives a warm
+    // glow.  Retain the original colour but reduce intensity slightly
+    // now that additional lights will help illuminate the exterior.
+    const candleLight = new THREE.PointLight(0xffa500, 1.5, 10, 2);
+    candleLight.position.set(0, 0, 0);
+    scene.add(candleLight);
+    // Add a hemispherical light to simulate sky and ground.  The sky
+    // colour is a soft warm tone and the ground is darker; this helps
+    // add subtle illumination to all sides of the pumpkin.
+    const hemiLight = new THREE.HemisphereLight(0xffe4b5, 0x442200, 0.5);
+    scene.add(hemiLight);
+    // Add a directional light to shine from above and the front.  This
+    // light brightens the ridges and surface details so the pumpkin
+    // colour appears correctly under a white page background.
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    dirLight.position.set(3, 4, 5);
+    scene.add(dirLight);
+
+    // Create textures
+    const textureSize = 1024;
+    // Colour texture
+    //
+    // The colour canvas uses a vertical gradient that transitions from a
+    // lighter yellow–orange at the top through mid‑orange in the middle to a
+    // deeper burnt orange at the bottom.  Real pumpkins often fade from a
+    // slightly paler colour near the stem to a richer orange near the base
+    //【865034304081347†L318-L320】.  Vertical banding is added with semi‑transparent
+    // strokes to suggest the subtle shadowing along the natural ridges of a
+    // pumpkin【616877583353996†L887-L890】.  The result is still stylised but
+    // reads more like a living squash than a flat colour.
+    const colorCanvas = document.createElement('canvas');
+    colorCanvas.width = textureSize;
+    colorCanvas.height = textureSize;
+    const colorCtx = colorCanvas.getContext('2d');
+    // Define a multi‑stop gradient for realistic pumpkin colouring.  The
+    // top begins pale yellow (#f6c453), transitions through bright orange
+    // (#e67e22) at mid‑height, and finishes with deep burnt orange
+    // (#8e440e) at the bottom.  These colours mimic the way sunlight
+    // bleaches the area near the stem while the lower portion remains
+    // saturated.
+    const gradient = colorCtx.createLinearGradient(0, 0, 0, textureSize);
+    gradient.addColorStop(0.0, '#f6c453');
+    gradient.addColorStop(0.4, '#e67e22');
+    gradient.addColorStop(1.0, '#8e440e');
+    colorCtx.fillStyle = gradient;
+    colorCtx.fillRect(0, 0, textureSize, textureSize);
+    // Overlay subtle vertical stripes to hint at ribbing.  Use a low
+    // opacity so the stripes do not overpower the gradient.  Increase the
+    // line count and vary line width slightly to avoid a mechanical
+    // appearance.  The use of a darker orange stroke provides gentle
+    // shadowing along each rib without creating harsh lines.
+    colorCtx.strokeStyle = 'rgba(130, 60, 10, 0.25)';
+    for (let i = 0; i < 24; i++) {
+      const x = (i + 0.5) * textureSize / 24;
+      colorCtx.lineWidth = 2 + (i % 2);
+      colorCtx.beginPath();
+      colorCtx.moveTo(x, 0);
+      colorCtx.lineTo(x, textureSize);
+      colorCtx.stroke();
+    }
+    const colorTexture = new THREE.CanvasTexture(colorCanvas);
+    colorTexture.wrapS = THREE.RepeatWrapping;
+    colorTexture.wrapT = THREE.RepeatWrapping;
+    // Mark the colour texture as sRGB so the renderer applies the
+    // appropriate gamma correction.  This prevents the pumpkin from
+    // appearing unnaturally dark when using the sRGB output colour
+    // space configured on the renderer.
+    if (colorTexture.colorSpace !== undefined) {
+      colorTexture.colorSpace = THREE.SRGBColorSpace;
+    } else if (colorTexture.encoding !== undefined) {
+      colorTexture.encoding = THREE.sRGBEncoding;
+    }
+
+    // Alpha texture
+    const alphaCanvas = document.createElement('canvas');
+    alphaCanvas.width = textureSize;
+    alphaCanvas.height = textureSize;
+    const alphaCtx = alphaCanvas.getContext('2d');
+    alphaCtx.imageSmoothingEnabled = true;
+    alphaCtx.fillStyle = 'rgba(255,255,255,1)';
+    alphaCtx.fillRect(0, 0, textureSize, textureSize);
+    const alphaTexture = new THREE.CanvasTexture(alphaCanvas);
+    alphaTexture.needsUpdate = true;
+    alphaTexture.minFilter = THREE.LinearFilter;
+    alphaTexture.magFilter = THREE.LinearFilter;
+
+    // ----------------------------------------------------------------------
+    // Geometry helper functions
+
+    /**
+     * Create a ridged pumpkin geometry based on shape parameters.
+     *
+     * @param {number} radius        Base sphere radius
+     * @param {number} widthSegments Number of horizontal segments
+     * @param {number} heightSegments Number of vertical segments
+     * @param {number} yScale         Scale factor to squash or stretch in Y
+     * @param {number} ridgeAmp       Amplitude of ridges (0..1)
+     * @param {number} ridgeCount     Number of ridges around circumference
+     * @returns {THREE.BufferGeometry} The modified geometry
+     */
+    function createRidgedGeometry(radius, widthSegments, heightSegments, yScale, ridgeAmp, ridgeCount) {
+      const geom = new THREE.SphereGeometry(radius, widthSegments, heightSegments);
+      const pos = geom.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        const x = pos.getX(i);
+        const y = pos.getY(i);
+        const z = pos.getZ(i);
+        const phi = Math.atan2(z, x);
+        const rxy = Math.sqrt(x * x + z * z);
+        const ridge = 1 + ridgeAmp * Math.sin(ridgeCount * phi);
+        const newY = y * yScale;
+        const newRxy = rxy * ridge;
+        const theta = Math.atan2(z, x);
+        const newX = newRxy * Math.cos(theta);
+        const newZ = newRxy * Math.sin(theta);
+        pos.setXYZ(i, newX, newY, newZ);
+      }
+      pos.needsUpdate = true;
+      geom.computeVertexNormals();
+      return geom;
+    }
+
+    /**
+     * Scale all vertices of a geometry by the same factor.  This is
+     * useful for creating an inner shell slightly smaller than the outer
+     * pumpkin geometry so it does not protrude through the ridged
+     * surface.
+     *
+     * @param {THREE.BufferGeometry} geom The geometry to scale
+     * @param {number} factor The scalar applied to each vertex position
+     */
+    function scaleGeometryVertices(geom, factor) {
+      const pos = geom.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        const x = pos.getX(i);
+        const y = pos.getY(i);
+        const z = pos.getZ(i);
+        pos.setXYZ(i, x * factor, y * factor, z * factor);
+      }
+      pos.needsUpdate = true;
+    }
+
+    /**
+     * Create an inner shell mesh from an outer geometry.  The new
+     * geometry is a clone of the outer geometry uniformly scaled down.
+     * A MeshBasicMaterial is used so it always renders as a warm orange
+     * regardless of lighting, and the BackSide setting ensures only the
+     * interior faces are drawn.  The geometry scale factor is chosen
+     * such that the shell remains inside the ridged outer shape in all
+     * directions.
+     *
+     * @param {THREE.BufferGeometry} outerGeom The geometry to clone
+     * @returns {THREE.Mesh} The inner shell mesh
+     */
+    function createInnerMesh(outerGeom) {
+      const innerGeom = outerGeom.clone();
+      scaleGeometryVertices(innerGeom, 0.97);
+      innerGeom.computeVertexNormals();
+      const mesh = new THREE.Mesh(innerGeom, innerMaterial);
+      return mesh;
+    }
+
+    // Pumpkin geometry
+    const radius = 1;
+    const widthSegments = 64;
+    const heightSegments = 64;
+    // Build the initial geometry based on the default shape selection
+    // using our helper.  currentShape is set above to 'classic'.
+    const cfg = shapeConfigs[currentShape];
+    let geometry = createRidgedGeometry(radius, widthSegments, heightSegments, cfg.yScale, cfg.ridgeAmplitude, cfg.ridgeCount);
+
+    // Material for the outer pumpkin.  Note: alphaMap and double side are
+    // preserved so carving works correctly.
+    const pumpkinMaterial = new THREE.MeshStandardMaterial({
+      map: colorTexture,
+      alphaMap: alphaTexture,
+      transparent: true,
+      side: THREE.DoubleSide,
+      roughness: 0.8,
+      metalness: 0.0,
+      emissive: new THREE.Color(0x1a0d00),
+      emissiveIntensity: 0.2,
+    });
+    // Create the pumpkin mesh and add it to the scene.  We'll store
+    // pumpkin in a variable so we can replace its geometry when the
+    // user selects a different shape.
+    const pumpkin = new THREE.Mesh(geometry, pumpkinMaterial);
+    scene.add(pumpkin);
+
+    // ----------------------------------------------------------------------
+    // Stem geometry
+    //
+    // Real pumpkins typically feature a woody, green‑brown peduncle or stem
+    // protruding from the top.  To more closely resemble a natural
+    // pumpkin, we create a tapered cylinder for the stem.  It starts
+    // wider at the base where it attaches to the pumpkin and narrows
+    // slightly towards the top.  A subtle brownish‑green colour is
+    // selected based on typical stem colours observed in many pumpkin
+    // varieties【616877583353996†L887-L890】.  The stem’s height is scaled
+    // relative to the pumpkin’s radius so that it remains proportional
+    // across different shapes.
+    let stem;
+    function createStem() {
+      // Remove old stem if present
+      if (stem) {
+        scene.remove(stem);
+        stem.geometry.dispose();
+        stem.material.dispose();
+        stem = null;
+      }
+      // Stem dimensions: choose slightly smaller sizes so the stem
+      // remains proportional and does not obstruct the UI.  The stem
+      // tapers from a wider base to a narrower top and is shorter than
+      // in earlier versions.  These values are based on typical
+      // peduncle proportions seen on jack‑o‑lantern pumpkins.
+      const baseRadius = radius * 0.12;
+      const topRadius = radius * 0.06;
+      const height = radius * 0.3;
+      const stemGeom = new THREE.CylinderGeometry(topRadius, baseRadius, height, 16);
+      // Slightly bend or tilt the stem by rotating it a bit along the X axis
+      stemGeom.translate(0, height / 2, 0);
+      const stemMat = new THREE.MeshStandardMaterial({
+        color: 0x72643b,
+        roughness: 0.8,
+        metalness: 0.0,
+      });
+      stem = new THREE.Mesh(stemGeom, stemMat);
+      // Position the stem at the top of the pumpkin.  The maximum Y
+      // coordinate of the pumpkin surface is approximated by the
+      // shape’s vertical scale factor (cfg.yScale) multiplied by the
+      // radius.  We adjust upward by half the stem height so that the
+      // base sits flush with the pumpkin surface.
+      // Compute the highest Y coordinate of the pumpkin by examining
+      // its current geometry.  Bounding boxes are updated before
+      // reading their values.  This approach ensures the stem sits
+      // directly on the pumpkin surface regardless of shape or ridge
+      // parameters.
+      if (pumpkin && pumpkin.geometry) {
+        pumpkin.geometry.computeBoundingBox();
+        const maxY = pumpkin.geometry.boundingBox.max.y;
+        // Position the stem so that its base (y=0 in local space) sits
+        // directly on the pumpkin surface.  Because the cylinder
+        // geometry was translated upward by height/2, its base now
+        // aligns with y=0.  Setting the mesh position to maxY
+        // attaches the base of the stem flush with the pumpkin.
+        stem.position.set(0, maxY, 0);
+      } else {
+        // Fallback to approximate positioning if the pumpkin isn't
+        // available.  This should rarely occur because createStem() is
+        // called after the pumpkin has been created.
+        const cfg = shapeConfigs[currentShape];
+        const approxMaxY = radius * cfg.yScale;
+        stem.position.set(0, approxMaxY, 0);
+      }
+      // Apply a slight random rotation around the vertical axis to give
+      // each stem a unique orientation.
+      stem.rotation.y = Math.random() * Math.PI * 2;
+      scene.add(stem);
+    }
+
+    // Inner shell material is defined once so it can be reused when
+    // regenerating the shape.  It renders with BackSide to show the
+    // interior surface only and uses a warm orange colour to simulate
+    // candle light.
+    const innerMaterial = new THREE.MeshBasicMaterial({
+      color: 0xffaa33,
+      side: THREE.BackSide,
+    });
+    // Create the initial inner mesh using the helper function.  We
+    // assign it to a variable so that it can be removed and replaced
+    // when the shape changes.
+    let innerMesh = createInnerMesh(geometry);
+    scene.add(innerMesh);
+
+    // Create the initial stem.  This function handles removal of any
+    // previous stem and adds the new one to the scene.  Calling this
+    // after the pumpkin mesh is created ensures the stem sits on the
+    // correct Y coordinate.
+    createStem();
+
+
+    // Flicker amplitude; adjust to taste
+    const baseCandleIntensity = candleLight.intensity;
+
+    /**
+     * Update the pumpkin and inner shell when the shape selection
+     * changes.  This function disposes of the old geometries to free
+     * GPU resources, creates new ones based on the selected shape
+     * parameters, and resets the alpha texture to remove any previous
+     * carving.  It relies on the variables radius, widthSegments,
+     * heightSegments, pumpkin, innerMesh, innerMaterial, shapeConfigs
+     * and the helper functions defined above.
+     */
+    function updatePumpkinShape() {
+      const cfg = shapeConfigs[currentShape];
+      const newGeom = createRidgedGeometry(
+        radius,
+        widthSegments,
+        heightSegments,
+        cfg.yScale,
+        cfg.ridgeAmplitude,
+        cfg.ridgeCount
+      );
+      // Replace pumpkin geometry
+      pumpkin.geometry.dispose();
+      pumpkin.geometry = newGeom;
+      // Remove old inner mesh and dispose geometry
+      if (innerMesh) {
+        scene.remove(innerMesh);
+        if (innerMesh.geometry) innerMesh.geometry.dispose();
+      }
+      // Create and add new inner mesh
+      innerMesh = createInnerMesh(newGeom);
+      scene.add(innerMesh);
+      // Reset the alpha map to a full opaque state
+      alphaCtx.globalCompositeOperation = 'source-over';
+      alphaCtx.fillStyle = 'rgba(255,255,255,1)';
+      alphaCtx.fillRect(0, 0, textureSize, textureSize);
+      alphaTexture.needsUpdate = true;
+
+      // Recreate the stem to match the new shape.  The helper
+      // calculates the appropriate Y position based on the current
+      // shape configuration and removes any old stem from the scene.
+      createStem();
+    }
+
+    // Raycaster
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+    let isCarving = false;
+
+    // View control state
+    // When the user performs a view control gesture (e.g. holding the right
+    // mouse button or Shift while dragging), we adjust the camera instead of
+    // carving.  Horizontal motion rotates the pumpkin and vertical motion
+    // zooms in or out.
+    let isControllingView = false;
+    let controlStartX = 0;
+    let controlStartY = 0;
+    let controlStartLon = 0;
+    let controlStartDistance = 0;
+
+    function carve(event) {
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(pointer, camera);
+      const intersects = raycaster.intersectObject(pumpkin);
+      if (intersects.length > 0) {
+        const intersect = intersects[0];
+        if (intersect.uv) {
+          const uv = intersect.uv;
+          const px = uv.x * textureSize;
+          const py = (1 - uv.y) * textureSize;
+          drawAt(px, py);
+          alphaTexture.needsUpdate = true;
+        }
+      }
+    }
+
+    function drawAt(x, y) {
+      const size = parseInt(sizeRange.value, 10);
+      const shape = toolSelect.value;
+      alphaCtx.save();
+      alphaCtx.globalCompositeOperation = 'destination-out';
+      alphaCtx.fillStyle = 'rgba(0,0,0,1)';
+      alphaCtx.translate(x, y);
+      if (shape === 'circle') {
+        alphaCtx.beginPath();
+        alphaCtx.arc(0, 0, size, 0, Math.PI * 2);
+        alphaCtx.fill();
+      } else if (shape === 'square') {
+        alphaCtx.beginPath();
+        alphaCtx.rect(-size, -size, size * 2, size * 2);
+        alphaCtx.fill();
+      } else if (shape === 'star') {
+        // Five‑pointed star
+        const spikes = 5;
+        const outerRadius = size;
+        const innerRadius = size * 0.5;
+        let rot = -Math.PI / 2;
+        const step = Math.PI / spikes;
+        alphaCtx.beginPath();
+        alphaCtx.moveTo(Math.cos(rot) * outerRadius, Math.sin(rot) * outerRadius);
+        for (let i = 0; i < spikes; i++) {
+          rot += step;
+          alphaCtx.lineTo(Math.cos(rot) * innerRadius, Math.sin(rot) * innerRadius);
+          rot += step;
+          alphaCtx.lineTo(Math.cos(rot) * outerRadius, Math.sin(rot) * outerRadius);
+        }
+        alphaCtx.closePath();
+        alphaCtx.fill();
+      } else if (shape === 'triangle') {
+        // Equilateral triangle
+        alphaCtx.beginPath();
+        alphaCtx.moveTo(0, -size);
+        alphaCtx.lineTo(size * Math.sin(Math.PI / 3), size * 0.5);
+        alphaCtx.lineTo(-size * Math.sin(Math.PI / 3), size * 0.5);
+        alphaCtx.closePath();
+        alphaCtx.fill();
+      } else if (shape === 'heart') {
+        // Simple heart shape using bezier curves
+        const s = size;
+        alphaCtx.beginPath();
+        alphaCtx.moveTo(0, -s * 0.2);
+        alphaCtx.bezierCurveTo(
+          -s,
+          -s,
+          -s,
+          s * 0.7,
+          0,
+          s
+        );
+        alphaCtx.bezierCurveTo(
+          s,
+          s * 0.7,
+          s,
+          -s,
+          0,
+          -s * 0.2
+        );
+        alphaCtx.closePath();
+        alphaCtx.fill();
+      } else if (shape === 'ellipse') {
+        // Ellipse brush: scaled circle
+        alphaCtx.beginPath();
+        alphaCtx.ellipse(0, 0, size, size * 0.6, 0, 0, Math.PI * 2);
+        alphaCtx.fill();
+      }
+      alphaCtx.restore();
+    }
+
+    // Pointer events
+    // Carving vs rotation is determined either by the Rotate toggle or the
+    // user holding Shift.  If rotation is active, pointer movement
+    // adjusts the camera angles; otherwise pointer movement carves
+    // into the pumpkin.  Zooming is handled via the wheel event.
+    function onPointerDown(event) {
+      /*
+       * Determine whether to carve or control the view.
+       *
+       * 1. If the user presses the right mouse button (button === 2) or
+       *    holds the Shift key, always initiate view control.  This
+       *    behaviour preserves the original interaction method for
+       *    experienced users.
+       *
+       * 2. For a left‑click (button === 0) without modifiers, decide
+       *    between carving and view control based on whether the
+       *    pointer intersects the pumpkin.  Clicking directly on the
+       *    pumpkin starts carving; clicking on empty background
+       *    initiates view control.  This allows users to rotate and
+       *    zoom by dragging anywhere outside the pumpkin and satisfies
+       *    the request to use left–right motion for rotation and
+       *    up–down motion for zoom without requiring a separate
+       *    checkbox.
+       */
+      // Always prevent the default behaviour to avoid selecting page
+      // elements or other unintended side effects.
+      event.preventDefault();
+      if (event.button === 2 || event.shiftKey) {
+        // Right button or Shift key: enter view control mode
+        isControllingView = true;
+        controlStartX = event.clientX;
+        controlStartY = event.clientY;
+        controlStartLon = lon;
+        controlStartDistance = distance;
+      } else {
+        // Left button: cast a ray to determine if the pumpkin was
+        // clicked.  If so, begin carving; otherwise begin view control.
+        const rect = renderer.domElement.getBoundingClientRect();
+        pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+        pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+        raycaster.setFromCamera(pointer, camera);
+        const hits = raycaster.intersectObject(pumpkin);
+        if (hits.length > 0) {
+          isCarving = true;
+          carve(event);
+        } else {
+          isControllingView = true;
+          controlStartX = event.clientX;
+          controlStartY = event.clientY;
+          controlStartLon = lon;
+          controlStartDistance = distance;
+        }
+      }
+    }
+    function onPointerMove(event) {
+      if (isCarving) {
+        carve(event);
+      }
+      if (isControllingView) {
+        const dx = event.clientX - controlStartX;
+        const dy = event.clientY - controlStartY;
+        // Horizontal drag rotates around the vertical axis
+        lon = controlStartLon + dx * 0.3;
+        // Vertical drag adjusts zoom.  Positive dy (dragging down) zooms
+        // out; negative dy zooms in.  The factor controls sensitivity.
+        const newDist = controlStartDistance + dy * 0.01;
+        distance = clamp(newDist, 1.5, 10);
+      }
+    }
+    function onPointerUp(event) {
+      // Reset flags regardless of button released
+      isCarving = false;
+      isControllingView = false;
+    }
+    renderer.domElement.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+    // Prevent default context menu on right‑click
+    renderer.domElement.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    // Zoom with the mouse wheel.  Scrolling adjusts the camera distance
+    // to zoom in or out.  View control via dragging now handles
+    // rotation and zoom, so the wheel only performs zooming.  We still
+    // prevent the default scroll behaviour to avoid scrolling the page.
+    function onWheel(event) {
+      event.preventDefault();
+      const delta = event.deltaY;
+      distance += delta * 0.002;
+      distance = clamp(distance, 1.5, 10);
+    }
+    renderer.domElement.addEventListener('wheel', onWheel, { passive: false });
+
+    // Reset button
+    clearBtn.addEventListener('click', () => {
+      alphaCtx.globalCompositeOperation = 'source-over';
+      alphaCtx.clearRect(0, 0, textureSize, textureSize);
+      alphaCtx.fillStyle = 'rgba(255,255,255,1)';
+      alphaCtx.fillRect(0, 0, textureSize, textureSize);
+      alphaTexture.needsUpdate = true;
+    });
+
+    // Shape selection handler.  When the user chooses a different
+    // pumpkin shape from the dropdown, regenerate the geometry and
+    // update the inner shell accordingly.  Carving is reset to a
+    // pristine state when the shape changes.
+    if (shapeSelect) {
+      shapeSelect.value = currentShape;
+      shapeSelect.addEventListener('change', () => {
+        currentShape = shapeSelect.value;
+        updatePumpkinShape();
+      });
+    }
+
+    // Download button
+    // Clicking this button captures the current WebGL canvas as a PNG
+    // data URL and triggers a download.  Because the renderer was
+    // instantiated with preserveDrawingBuffer: true, the canvas
+    // retains its contents long enough for toDataURL() to succeed.
+    if (downloadBtn) {
+      downloadBtn.addEventListener('click', () => {
+        // Ensure the latest frame is drawn before export
+        renderer.render(scene, camera);
+        const dataURL = renderer.domElement.toDataURL('image/png');
+        const link = document.createElement('a');
+        link.href = dataURL;
+        link.download = 'carved_pumpkin.png';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      });
+    }
+
+    // Dark mode support
+    // Maintain a boolean state for dark mode.  Clicking the dark mode
+    // toggle button flips the state and reapplies theme‑specific
+    // settings.  The CSS handles UI colours via variables while this
+    // function adjusts scene lighting and firefly colours.  The
+    // `dark` class on the body element triggers CSS variable overrides.
+    let darkMode = false;
+    function applyDarkMode() {
+      // Toggle the CSS class on the body to switch theme variables
+      document.body.classList.toggle('dark', darkMode);
+      if (darkMode) {
+        // Dark mode scene settings
+        scene.background = new THREE.Color(0x111111);
+        ambient.color.setHex(0x888888);
+        hemiLight.intensity = 0.7;
+        dirLight.intensity = 1.2;
+        // Brighter fireflies for dark backgrounds
+        particles.forEach(p => {
+          p.mesh.material.color.setHex(0xffbb55);
+        });
+      } else {
+        // Light mode scene settings
+        scene.background = new THREE.Color(0xffffff);
+        ambient.color.setHex(0x555555);
+        hemiLight.intensity = 0.5;
+        dirLight.intensity = 0.8;
+        particles.forEach(p => {
+          p.mesh.material.color.setHex(0xffe084);
+        });
+      }
+    }
+    // Set up click handler on dark mode button
+    if (darkModeToggleBtn) {
+      darkModeToggleBtn.addEventListener('click', () => {
+        darkMode = !darkMode;
+        applyDarkMode();
+      });
+    }
+
+    // Resize handler
+    window.addEventListener('resize', () => {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+    });
+
+    // Animation loop
+    // Maintain the previous timestamp to compute frame deltas.  Updating
+    // lights and particles based on delta produces time‑consistent
+    // animations regardless of frame rate.
+    let lastTime = performance.now();
+    function animate() {
+      requestAnimationFrame(animate);
+      const now = performance.now();
+      const delta = now - lastTime;
+      lastTime = now;
+      // Flicker effect: vary the intensity of the candle light.  A
+      // combination of a sinusoidal term and random noise produces a
+      // natural looking flicker.  baseCandleIntensity stores the
+      // baseline intensity set during initialisation.
+      const flicker = Math.sin(now * 0.005) * 0.3 + (Math.random() - 0.5) * 0.2;
+      candleLight.intensity = baseCandleIntensity + flicker;
+      // Update the camera position
+      updateCamera();
+      // Render the scene
+      renderer.render(scene, camera);
+    }
+    animate();
+  </script>
+</body>
+
+</html>
