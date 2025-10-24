@@ -714,6 +714,109 @@
     const pointer = new THREE.Vector2();
     let isCarving = false;
 
+    // Pumpkin shards particle system
+    const pumpkinShards = [];
+    const maxShards = 500; // Limit total number of shards for performance
+
+    /**
+     * Spawn pumpkin shards at a 3D position in the scene.
+     * @param {THREE.Vector3} position The world position where carving occurred
+     * @param {number} count Number of shards to spawn
+     */
+    function spawnShards(position, count = 5) {
+      for (let i = 0; i < count; i++) {
+        // Create a small sphere or box for each shard
+        const size = 0.01 + Math.random() * 0.02;
+        const geometry = new THREE.BoxGeometry(size, size, size);
+        
+        // Use pumpkin-like colors for shards
+        const colors = [0xff8c00, 0xff6600, 0xffa500, 0xe67e22];
+        const color = colors[Math.floor(Math.random() * colors.length)];
+        const material = new THREE.MeshStandardMaterial({
+          color: color,
+          roughness: 0.7,
+          metalness: 0.1
+        });
+        
+        const shard = new THREE.Mesh(geometry, material);
+        
+        // Position at carving location with slight random offset
+        shard.position.copy(position);
+        shard.position.x += (Math.random() - 0.5) * 0.05;
+        shard.position.y += (Math.random() - 0.5) * 0.05;
+        shard.position.z += (Math.random() - 0.5) * 0.05;
+        
+        // Random initial velocity (mostly outward and downward)
+        const velocity = new THREE.Vector3(
+          (Math.random() - 0.5) * 0.002,
+          Math.random() * 0.002,
+          (Math.random() - 0.5) * 0.002
+        );
+        
+        // Random rotation velocity for tumbling effect
+        const rotationVel = new THREE.Vector3(
+          (Math.random() - 0.5) * 0.1,
+          (Math.random() - 0.5) * 0.1,
+          (Math.random() - 0.5) * 0.1
+        );
+        
+        scene.add(shard);
+        
+        pumpkinShards.push({
+          mesh: shard,
+          velocity: velocity,
+          rotationVel: rotationVel,
+          life: 3000 // Lifetime in milliseconds
+        });
+        
+        // Remove oldest shards if we exceed the limit
+        if (pumpkinShards.length > maxShards) {
+          const oldest = pumpkinShards.shift();
+          scene.remove(oldest.mesh);
+          oldest.mesh.geometry.dispose();
+          oldest.mesh.material.dispose();
+        }
+      }
+    }
+
+    /**
+     * Update all pumpkin shards - apply gravity, rotation, and remove expired ones
+     * @param {number} deltaMs Time elapsed since last frame in milliseconds
+     */
+    function updateShards(deltaMs) {
+      for (let i = pumpkinShards.length - 1; i >= 0; i--) {
+        const shard = pumpkinShards[i];
+        
+        // Apply gravity
+        shard.velocity.y -= 0.00005 * deltaMs;
+        
+        // Update position
+        shard.mesh.position.add(shard.velocity);
+        
+        // Update rotation for tumbling effect
+        shard.mesh.rotation.x += shard.rotationVel.x;
+        shard.mesh.rotation.y += shard.rotationVel.y;
+        shard.mesh.rotation.z += shard.rotationVel.z;
+        
+        // Decrease lifetime
+        shard.life -= deltaMs;
+        
+        // Fade out as life decreases
+        if (shard.life < 500) {
+          shard.mesh.material.opacity = shard.life / 500;
+          shard.mesh.material.transparent = true;
+        }
+        
+        // Remove dead shards or those that fell too far
+        if (shard.life <= 0 || shard.mesh.position.y < -5) {
+          scene.remove(shard.mesh);
+          shard.mesh.geometry.dispose();
+          shard.mesh.material.dispose();
+          pumpkinShards.splice(i, 1);
+        }
+      }
+    }
+
     // View control state
     // When the user performs a view control gesture (e.g. holding the right
     // mouse button or Shift while dragging), we adjust the camera instead of
@@ -737,8 +840,20 @@
           const uv = intersect.uv;
           const px = uv.x * textureSize;
           const py = (1 - uv.y) * textureSize;
+          
+          // Check if this area is already carved by reading the alpha value
+          // Only spawn shards if we're carving solid pumpkin (alpha > threshold)
+          const imageData = alphaCtx.getImageData(px, py, 1, 1);
+          const alpha = imageData.data[3]; // Alpha channel (0-255)
+          const isAlreadyCarved = alpha < 128; // Threshold for "carved"
+          
           drawAt(px, py);
           alphaTexture.needsUpdate = true;
+          
+          // Only spawn shards if we're carving a solid part of the pumpkin
+          if (!isAlreadyCarved) {
+            spawnShards(intersect.point, 3);
+          }
         }
       }
     }
@@ -963,19 +1078,12 @@
         ambient.color.setHex(0x888888);
         hemiLight.intensity = 0.7;
         dirLight.intensity = 1.2;
-        // Brighter fireflies for dark backgrounds
-        particles.forEach(p => {
-          p.mesh.material.color.setHex(0xffbb55);
-        });
       } else {
         // Light mode scene settings - use light background texture
         scene.background = lightBgTexture;
         ambient.color.setHex(0x555555);
         hemiLight.intensity = 0.5;
         dirLight.intensity = 0.8;
-        particles.forEach(p => {
-          p.mesh.material.color.setHex(0xffe084);
-        });
       }
     }
     // Set up click handler on dark mode button
@@ -1011,6 +1119,8 @@
       // baseline intensity set during initialisation.
       const flicker = Math.sin(now * 0.005) * 0.3 + (Math.random() - 0.5) * 0.2;
       candleLight.intensity = baseCandleIntensity + flicker;
+      // Update pumpkin shards
+      updateShards(delta);
       // Update the camera position
       updateCamera();
       // Render the scene
