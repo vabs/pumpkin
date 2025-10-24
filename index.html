@@ -247,7 +247,7 @@
         <span class="material-icons-outlined">download</span>
       </button>
       <button id="darkModeToggleBtn" class="icon-button" data-tooltip="Toggle dark mode">
-        <span class="material-icons-outlined">dark_mode</span>
+        <span class="material-icons-outlined" id="themeIcon">dark_mode</span>
       </button>
     </div>
   </div>
@@ -1068,7 +1068,9 @@
     // settings.  The CSS handles UI colours via variables while this
     // function adjusts scene lighting and firefly colours.  The
     // `dark` class on the body element triggers CSS variable overrides.
-    let darkMode = false;
+    let darkMode = true;
+    const themeIcon = document.getElementById('themeIcon');
+    
     function applyDarkMode() {
       // Toggle the CSS class on the body to switch theme variables
       document.body.classList.toggle('dark', darkMode);
@@ -1078,14 +1080,21 @@
         ambient.color.setHex(0x888888);
         hemiLight.intensity = 0.7;
         dirLight.intensity = 1.2;
+        // Show moon icon when dark mode is active
+        if (themeIcon) themeIcon.textContent = 'dark_mode';
       } else {
         // Light mode scene settings - use light background texture
         scene.background = lightBgTexture;
         ambient.color.setHex(0x555555);
         hemiLight.intensity = 0.5;
         dirLight.intensity = 0.8;
+        // Show light mode icon when light mode is active
+        if (themeIcon) themeIcon.textContent = 'light_mode';
       }
     }
+    // Apply dark mode on initial load
+    applyDarkMode();
+    
     // Set up click handler on dark mode button
     if (darkModeToggleBtn) {
       darkModeToggleBtn.addEventListener('click', () => {
