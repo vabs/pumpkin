@@ -261,6 +261,18 @@
     const textureLoader = new THREE.TextureLoader();
     const lightBgTexture = textureLoader.load('images/light-bg.svg');
     const darkBgTexture = textureLoader.load('images/dark-bg.svg');
+    
+    // Set background textures to sRGB color space to prevent gamma correction from brightening them
+    if (lightBgTexture.colorSpace !== undefined) {
+      lightBgTexture.colorSpace = THREE.SRGBColorSpace;
+    } else if (lightBgTexture.encoding !== undefined) {
+      lightBgTexture.encoding = THREE.sRGBEncoding;
+    }
+    if (darkBgTexture.colorSpace !== undefined) {
+      darkBgTexture.colorSpace = THREE.SRGBColorSpace;
+    } else if (darkBgTexture.encoding !== undefined) {
+      darkBgTexture.encoding = THREE.sRGBEncoding;
+    }
 
     // DOM references
     const container = document.getElementById('container');
@@ -310,6 +322,8 @@
     });
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setSize(window.innerWidth, window.innerHeight);
+    // Disable tone mapping to prevent automatic brightness adjustments
+    renderer.toneMapping = THREE.NoToneMapping;
     // Render colours in the sRGB colour space so that the pumpkin's
     // gradient appears bright and saturated.  Without this, colours
     // remain in linear space and look too dark.
@@ -323,7 +337,7 @@
     // Scene and camera
     const scene = new THREE.Scene();
     // Use the light background texture by default
-    scene.background = lightBgTexture;
+    scene.background = darkBgTexture;
     const camera = new THREE.PerspectiveCamera(
       45,
       window.innerWidth / window.innerHeight,
@@ -1075,15 +1089,16 @@
       // Toggle the CSS class on the body to switch theme variables
       document.body.classList.toggle('dark', darkMode);
       if (darkMode) {
-        // Dark mode scene settings - use dark background texture
+        // Dark mode scene settings - use dark background texture with almost no ambient lighting
+        // The background should display as-is without being washed out by lights
         scene.background = darkBgTexture;
-        ambient.color.setHex(0x888888);
-        hemiLight.intensity = 0.7;
-        dirLight.intensity = 1.2;
+        ambient.color.setHex(0x555555); // No ambient light - let background be dark
+        hemiLight.intensity = 0.1; // No hemisphere light
+        dirLight.intensity = 0.3; // Minimal directional light only for pumpkin definition
         // Show moon icon when dark mode is active
         if (themeIcon) themeIcon.textContent = 'dark_mode';
       } else {
-        // Light mode scene settings - use light background texture
+        // Light mode scene settings - use light background texture with brighter lighting
         scene.background = lightBgTexture;
         ambient.color.setHex(0x555555);
         hemiLight.intensity = 0.5;
