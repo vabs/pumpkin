@@ -257,6 +257,11 @@
       console.error('Three.js failed to load. Make sure you have a network connection or adjust the script URL.');
     }
 
+    // Load background textures for light and dark modes
+    const textureLoader = new THREE.TextureLoader();
+    const lightBgTexture = textureLoader.load('images/light-bg.png');
+    const darkBgTexture = textureLoader.load('images/dark-bg.png');
+
     // DOM references
     const container = document.getElementById('container');
     const shapeSelect = document.getElementById('shapeSelect');
@@ -317,10 +322,8 @@
 
     // Scene and camera
     const scene = new THREE.Scene();
-    // Use a white background instead of dark grey.  This matches the page
-    // background and meets the requirement to change the background colour
-    // from black to white.
-    scene.background = new THREE.Color(0xffffff);
+    // Use the light background texture by default
+    scene.background = lightBgTexture;
     const camera = new THREE.PerspectiveCamera(
       45,
       window.innerWidth / window.innerHeight,
@@ -955,8 +958,8 @@
       // Toggle the CSS class on the body to switch theme variables
       document.body.classList.toggle('dark', darkMode);
       if (darkMode) {
-        // Dark mode scene settings
-        scene.background = new THREE.Color(0x111111);
+        // Dark mode scene settings - use dark background texture
+        scene.background = darkBgTexture;
         ambient.color.setHex(0x888888);
         hemiLight.intensity = 0.7;
         dirLight.intensity = 1.2;
@@ -965,8 +968,8 @@
           p.mesh.material.color.setHex(0xffbb55);
         });
       } else {
-        // Light mode scene settings
-        scene.background = new THREE.Color(0xffffff);
+        // Light mode scene settings - use light background texture
+        scene.background = lightBgTexture;
         ambient.color.setHex(0x555555);
         hemiLight.intensity = 0.5;
         dirLight.intensity = 0.8;
